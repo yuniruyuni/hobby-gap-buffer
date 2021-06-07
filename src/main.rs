@@ -4,20 +4,23 @@ struct GapBuffer<T> {
     buffer: Vec<T>,
 }
 
-// TODO: research about uninitialized value handling and remove Clone trait constraint from T
-impl<T: Clone> GapBuffer<T> {
-    fn new(zero: T, cap: usize) -> Self {
+impl<T: Default> GapBuffer<T> {
+    fn new(cap: usize) -> Self {
+        let mut buffer = Vec::with_capacity(cap);
+        for _ in 0..cap {
+            buffer.push(T::default());
+        }
         Self {
             gap_beg: 0,
             gap_end: cap,
-            buffer: vec![zero; cap],
+            buffer: buffer,
         }
     }
 }
 
 
 fn main() {
-    let _ = GapBuffer::new(0, 100);
+    let _: GapBuffer<i32> = GapBuffer::new(100);
     println!("Hello, world!");
 }
 
@@ -27,7 +30,7 @@ mod test {
 
     #[test]
     fn new() {
-        let buf = GapBuffer::new(0, 100);
+        let buf: GapBuffer<i32> = GapBuffer::new(100);
         assert_eq!(buf.gap_beg, 0);
         assert_eq!(buf.gap_end, 100);
         assert_eq!(buf.buffer, vec![0; 100]);
