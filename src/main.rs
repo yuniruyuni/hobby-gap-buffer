@@ -32,43 +32,46 @@ impl<T: Default> GapBuffer<T> {
     }
 
     fn set_cursor(&mut self, pos: usize) {
-        assert!(pos < self.len());
-
-        if self.gap_beg == pos {
-            // none to do
-            return;
-        }
+        assert!(pos <= self.len());
 
         let gap_beg = self.gap_beg;
         let gap_end = self.gap_end;
         let gap_cap = self.gap_cap();
 
-        let mut copy = |src_beg, dst_beg, len| {
+        let copy = |buf: &mut Vec<T>, src_beg, dst_beg, len| {
             for i in 0..len {
                 let src = src_beg + i;
                 let dst = dst_beg + i;
-                self.buffer[dst] = take(&mut self.buffer[src]);
+                buf[dst] = take(&mut buf[src]);
+            }
+        };
+
+        let revcopy = |buf: &mut Vec<T>, src_end, dst_end, len| {
+            for i in 1..=len {
+                let src = src_end - i;
+                let dst = dst_end - i;
+                buf[dst] = take(&mut buf[src]);
             }
         };
 
         if pos < gap_beg {
             // copy [pos, gap_beg] to [gap_end - (pos - gap_beg), gap_end]
             let cpy_len = gap_beg - pos;
-            let src_beg = pos;
-            let dst_beg = gap_end - cpy_len;
-            copy(src_beg, dst_beg, cpy_len);
+            let src_end = gap_beg;
+            let dst_end = gap_end;
+            revcopy(&mut self.buffer, src_end, dst_end, cpy_len);
         } else if gap_beg <= pos && pos < gap_end {
             // copy [gap_end - (pos - gap_beg), gap_end] to [gap_beg, pos]
             let cpy_len = pos - gap_beg;
             let src_beg = gap_end - cpy_len;
             let dst_beg = gap_beg - cpy_len;
-            copy(src_beg, dst_beg, cpy_len);
+            copy(&mut self.buffer, src_beg, dst_beg, cpy_len);
         } else {
             // copy [gap_end - (pos - gap_beg), gap_end] to [gap_beg, pos]
             let cpy_len = pos - gap_beg;
             let src_beg = gap_end;
             let dst_beg = gap_beg;
-            copy(src_beg, dst_beg, cpy_len);
+            copy(&mut self.buffer, src_beg, dst_beg, cpy_len);
         }
 
         self.gap_beg = pos;
@@ -162,5 +165,64 @@ mod test {
         assert_eq!(buf.gap_beg, 0);
         assert_eq!(buf.gap_end, 1);
         assert_eq!(buf.buffer, vec![0, 1]);
+    }
+
+
+    #[test]
+    fn set_cursor_pos_lt_beg() {
+        let mut buf: GapBuffer<i32> = GapBuffer::new(4);
+        buf.insert(1);
+        buf.insert(2);
+        buf.insert(3);
+        assert_eq!(buf.gap_beg, 3);
+        assert_eq!(buf.gap_end, 4);
+        assert_eq!(buf.buffer, vec![1, 2, 3, 0]);
+        buf.set_cursor(1);
+        assert_eq!(buf.gap_beg, 1);
+        assert_eq!(buf.gap_end, 2);
+        assert_eq!(buf.buffer, vec![1, 0, 2, 3]);
+    }
+
+    #[test]
+    fn set_cursor_pos_eq_beg() {
+        let mut buf: GapBuffer<i32> = GapBuffer::new(2);
+        buf.insert(1);
+        buf.set_cursor(1);
+        assert_eq!(buf.gap_beg, 1);
+        assert_eq!(buf.gap_end, 2);
+        assert_eq!(buf.buffer, vec![1, 0]);
+    }
+
+    #[test]
+    fn set_cursor_pos_eq_end() {
+        let mut buf: GapBuffer<i32> = GapBuffer::new(4);
+        buf.insert(1);
+        buf.insert(2);
+        buf.set_cursor(0);
+        assert_eq!(buf.gap_beg, 0);
+        assert_eq!(buf.gap_end, 2);
+        buf.set_cursor(2);
+        assert_eq!(buf.gap_beg, 2);
+        assert_eq!(buf.gap_end, 4);
+        assert_eq!(buf.buffer, vec![1, 2, 0, 0]);
+    }
+
+    #[test]
+    fn set_cursor_pos_gt_end() {
+        let mut buf: GapBuffer<i32> = GapBuffer::new(4);
+        buf.insert(1);
+        buf.insert(2);
+        buf.insert(3);
+        assert_eq!(buf.gap_beg, 3);
+        assert_eq!(buf.gap_end, 4);
+        assert_eq!(buf.buffer, vec![1, 2, 3, 0]);
+        buf.set_cursor(1);
+        assert_eq!(buf.gap_beg, 1);
+        assert_eq!(buf.gap_end, 2);
+        assert_eq!(buf.buffer, vec![1, 0, 2, 3]);
+        buf.set_cursor(3);
+        assert_eq!(buf.gap_beg, 3);
+        assert_eq!(buf.gap_end, 4);
+        assert_eq!(buf.buffer, vec![1, 2, 3, 0]);
     }
 }
